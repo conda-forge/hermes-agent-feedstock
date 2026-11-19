@@ -1,16 +1,8 @@
 @echo on
 setlocal
 
-(
-  echo packages:
-  echo   - apps/shared
-  echo   - ui-tui
-  echo   - ui-tui/packages/*
-  echo   - web
-) > pnpm-workspace.yaml
-
-call pnpm import || exit /b 1
-call pnpm install --frozen-lockfile --ignore-scripts || exit /b 1
+@REM Preserve upstream workspace overrides and the reviewed dependency lock.
+call pnpm --filter web... --filter hermes-tui... install --frozen-lockfile --ignore-scripts || exit /b 1
 
 call pnpm --dir web build || exit /b 1
 call pnpm --dir ui-tui build || exit /b 1
@@ -21,16 +13,14 @@ call pnpm-licenses generate-disclaimer --json-input-file pnpm-licenses.json -o "
 del /Q pnpm-licenses.json
 
 if not exist "hermes_cli\tui_dist" mkdir "hermes_cli\tui_dist" || exit /b 1
-copy /Y "ui-tui\dist\entry.js" "hermes_cli\tui_dist\entry.js" >nul || exit /b 1
+xcopy /E /H /I /Y "ui-tui\dist" "hermes_cli\tui_dist" || exit /b 1
 
-@REM This skill's license forbids retaining or distributing it outside Anthropic services.
-if exist "skills\productivity\powerpoint" rmdir /S /Q "skills\productivity\powerpoint"
+@REM Discard the generated skill index.
 if exist "skills\index-cache" rmdir /S /Q "skills\index-cache"
 
+set HERMES_CONDA_BUILD=1
+"%PYTHON%" scripts\write_install_stamp.py --output install-stamp.json --base-version 0.23.2 --distance 0 --commit ae2a81ccc00e9b7c06301523e5bb09608397149c --source build --update-mechanism external || exit /b 1
 "%PYTHON%" -m pip install . -vv --no-deps --no-build-isolation || exit /b 1
 
-@REM setuptools does not preserve these data-file trees in the generated wheel.
-if not exist "%PREFIX%\skills" mkdir "%PREFIX%\skills" || exit /b 1
-if not exist "%PREFIX%\optional-skills" mkdir "%PREFIX%\optional-skills" || exit /b 1
-xcopy /E /H /I /Y skills "%PREFIX%\skills" || exit /b 1
-xcopy /E /H /I /Y optional-skills "%PREFIX%\optional-skills" || exit /b 1
+@REM Stage the resource trees omitted by the upstream wheel.
+"%PYTHON%" "%RECIPE_DIR%\install_resources.py" || exit /b 1
