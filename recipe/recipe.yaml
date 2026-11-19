@@ -3,6 +3,7 @@ schema_version: 1
 context:
   # Upstream switched from calendar tags to semantic versions.
   version: "0.23.2"
+  python_min: "3.14"
 
 package:
   name: hermes-agent
@@ -19,9 +20,10 @@ source:
 
 build:
   number: 0
-  skip: not match(python, ">=3.14,<3.15")
-  # Native Relay requirements differ between Intel and Apple Silicon macOS.
-  # Build per platform so their dependency metadata cannot be interchanged.
+  noarch: python
+  variant:
+    ignore_keys:
+      - nodejs
   python:
     entry_points:
       - hermes = hermes_cli.main:main
@@ -35,14 +37,14 @@ requirements:
     - pnpm-licenses
   host:
     - pip
-    - python
+    - python ${{ python_min }}.*
     - setuptools ==84.1.0
     - wheel ==0.48.0
   run:
     - ffmpeg
     - git
     - nodejs >=26
-    - python
+    - python >=${{ python_min }},<3.15
     - ripgrep
     - openai ==2.54.0
     - certifi ==2026.10.19
@@ -105,9 +107,9 @@ requirements:
         - python-tzdata ==2025.3
         - concurrent-log-handler ==0.9.30
 
-    - if: linux or win or (osx and arm64)
-      then:
-        - nemo-relay >=0.11,<0.12
+    # PyPI calls this nemo-relay. Conda-forge also provides Intel macOS builds,
+    # so the upstream wheel-availability marker is not needed here.
+    - python-nemo-relay >=0.11,<0.12
 
 tests:
   - python:
@@ -154,7 +156,7 @@ tests:
       - hermes-acp --help
     requirements:
       run:
-        - python
+        - python ${{ python_min }}.*
 
 about:
   homepage: https://hermes-agent.nousresearch.com
