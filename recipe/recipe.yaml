@@ -17,6 +17,7 @@ source:
 
   patches:
     - conda-packaging.patch
+    - optional-features.patch
 
 build:
   number: 0
@@ -59,7 +60,6 @@ requirements:
     - ruamel.yaml.clib ==0.2.15
     - requests ==2.34.2
     - jinja2 ==3.1.6
-    - firecrawl-anydoc ==0.2.4
     - pydantic ==2.14.1
     - prompt_toolkit ==3.0.53
     - croniter ==6.2.4
@@ -71,7 +71,6 @@ requirements:
     - cryptography ==50.0.2
     - psutil ==7.2.2
     - websockets ==15.0.1
-    - browser-harness ==0.1.13
     - pathspec ==1.1.1
     - fastapi >=0.104.0,<1
     - uvicorn >=0.31.0,<1
@@ -100,10 +99,6 @@ requirements:
         - __win
         - pywinpty >=3.0.5,<4
         - pywin32 >=306,<312
-        - winrt-windows-applicationmodel >=3.2.1,<4
-        - winrt-windows-foundation >=3.2.1,<4
-        - winrt-windows-foundation-collections >=3.2.1,<4
-        - winrt-windows-services-store >=3.2.1,<4
         - python-tzdata ==2025.3
         - concurrent-log-handler ==0.9.30
 
@@ -154,6 +149,11 @@ tests:
       - hermes --help
       - hermes-agent --help
       - hermes-acp --help
+    requirements:
+      run:
+        - python ${{ python_min }}.*
+
+  - script: test_optional_features.py
     requirements:
       run:
         - python ${{ python_min }}.*
