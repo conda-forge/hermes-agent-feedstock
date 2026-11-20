@@ -1,0 +1,54 @@
+--- a/setup.py
++++ b/setup.py
+@@ -31,7 +31,11 @@
+ 
+ _ROOT = os.path.dirname(os.path.abspath(__file__))
+ 
+-_IN_NIX_BUILD = os.environ.get("HERMES_NIX_BUILD") == "1"
++# Conda also stages all resources separately from the wheel.
++_IN_NIX_BUILD = (
++    os.environ.get("HERMES_NIX_BUILD") == "1"
++    or os.environ.get("HERMES_CONDA_BUILD") == "1"
++)
+ 
+ _BLOCK_MESSAGE = (
+     "Building wheels or sdists for hermes-agent is not supported.\n"
+--- a/hermes_constants.py
++++ b/hermes_constants.py
+@@ -489,7 +489,13 @@
+     ``<HERMES_HOME>/<subdir>``.
+     """
+     override = os.getenv(env_var, "").strip()
+-    return Path(override) if override else default if default is not None else get_hermes_home() / subdir
++    if override:
++        return Path(override)
++    if default is not None:
++        return default
++    # Conda installs the data next to this module, including on Windows.
++    packaged = Path(__file__).resolve().parent / subdir
++    return packaged if packaged.is_dir() else get_hermes_home() / subdir
+ 
+ 
+ def get_optional_skills_dir(default: Path | None = None) -> Path:
+--- a/pyproject.toml
++++ b/pyproject.toml
+@@ -4,7 +4,7 @@
+ 
+ [project]
+ name = "hermes-agent"
+-version = "0.0.0"
++version = "0.23.2"
+ description = "The self-improving AI agent — creates skills from experience, improves them during use, and runs anywhere"
+ readme = "README.md"
+ # 3.14 is the newest python we know we have wheels for.
+--- a/uv.lock
++++ b/uv.lock
+@@ -2294,7 +2294,7 @@
+ 
+ [[package]]
+ name = "hermes-agent"
+-version = "0.0.0"
++version = "0.23.2"
+ source = { editable = "." }
+ default-groups = []
+ dependencies = [
