@@ -1,0 +1,144 @@
+--- a/pyproject.toml
++++ b/pyproject.toml
+@@ -163,13 +163,7 @@
+   # imports win32security/win32file/etc. directly — declare pywin32 rather than
+   # relying on the concurrent-log-handler → portalocker transitive chain.
+   "pywin32>=306,<312; sys_platform == 'win32' and python_version >= '3.14'",
+-  # App Installer checks use Package from ApplicationModel. Foundation
+-  # supplies the URI and async result types projected when the checker runs.
+-  "winrt-windows-applicationmodel>=3.2.1,<4; sys_platform == 'win32' and python_version >= '3.14'",
+-  "winrt-windows-foundation>=3.2.1,<4; sys_platform == 'win32' and python_version >= '3.14'",
+-  # Store update queries and request results project collection interfaces.
+-  "winrt-windows-foundation-collections>=3.2.1,<4; sys_platform == 'win32' and python_version >= '3.14'",
+-  "winrt-windows-services-store>=3.2.1,<4; sys_platform == 'win32' and python_version >= '3.14'",
++  # Conda owns updates; Windows Store/App Installer projections are not needed.
+   # Image resize recovery for the vision tools. Pillow shrinks oversized images
+   # (>5 MB or >8000px) at embed time; without it the byte AND pixel-dimension
+   # shrink paths no-op, so an oversized image bakes into immutable history and
+--- a/uv.lock
++++ b/uv.lock
+@@ -2339,10 +2339,6 @@
+     { name = "uvicorn" },
+     { name = "watchfiles" },
+     { name = "websockets" },
+-    { name = "winrt-windows-applicationmodel", marker = "sys_platform == 'win32'" },
+-    { name = "winrt-windows-foundation", marker = "sys_platform == 'win32'" },
+-    { name = "winrt-windows-foundation-collections", marker = "sys_platform == 'win32'" },
+-    { name = "winrt-windows-services-store", marker = "sys_platform == 'win32'" },
+ ]
+ 
+ [package.optional-dependencies]
+@@ -2771,10 +2767,6 @@
+     { name = "watchfiles", marker = "python_full_version >= '3.14'", specifier = ">=0.20,<2" },
+     { name = "websockets", marker = "python_full_version >= '3.14'", specifier = "==15.0.1" },
+     { name = "websockets", marker = "sys_platform != 'android' and extra == 'google-meet'", specifier = "==15.0.1" },
+-    { name = "winrt-windows-applicationmodel", marker = "python_full_version >= '3.14' and sys_platform == 'win32'", specifier = ">=3.2.1,<4" },
+-    { name = "winrt-windows-foundation", marker = "python_full_version >= '3.14' and sys_platform == 'win32'", specifier = ">=3.2.1,<4" },
+-    { name = "winrt-windows-foundation-collections", marker = "python_full_version >= '3.14' and sys_platform == 'win32'", specifier = ">=3.2.1,<4" },
+-    { name = "winrt-windows-services-store", marker = "python_full_version >= '3.14' and sys_platform == 'win32'", specifier = ">=3.2.1,<4" },
+     { name = "youtube-transcript-api", marker = "extra == 'youtube'", specifier = "==1.2.4" },
+ ]
+ provides-extras = ["uvloop", "anthropic", "exa", "firecrawl", "parallel-web", "ddgs", "fal", "edge-tts", "neutts", "kittentts", "piper", "modal", "daytona", "vercel", "google-meet", "messaging", "cron", "slack", "matrix", "wecom", "keychain", "tts-premium", "voice", "wake", "telegram", "discord", "stt-whisper", "audio-io", "silk", "wake-openwakeword", "wake-sherpa", "wake-porcupine", "google-chat", "doc-extract", "documents", "documents-pdf", "trace-upload", "vision", "pty", "mcp", "nemo-relay", "sms", "teams", "computer-use", "acp", "mistral", "otlp", "bedrock", "vertex", "azure-identity", "termux", "termux-all", "dingtalk", "feishu", "google", "youtube", "web", "all"]
+@@ -7464,7 +7456,6 @@
+ ]
+ 
+ [[package]]
+-name = "winrt-windows-applicationmodel"
+ version = "3.2.1"
+ source = { registry = "https://pypi.org/simple" }
+ dependencies = [
+@@ -7487,7 +7478,6 @@
+ ]
+ 
+ [[package]]
+-name = "winrt-windows-foundation"
+ version = "3.2.1"
+ source = { registry = "https://pypi.org/simple" }
+ dependencies = [
+@@ -7510,7 +7500,6 @@
+ ]
+ 
+ [[package]]
+-name = "winrt-windows-foundation-collections"
+ version = "3.2.1"
+ source = { registry = "https://pypi.org/simple" }
+ dependencies = [
+@@ -7533,7 +7522,6 @@
+ ]
+ 
+ [[package]]
+-name = "winrt-windows-services-store"
+ version = "3.2.1"
+ source = { registry = "https://pypi.org/simple" }
+ dependencies = [
+--- a/tools/read_extract.py
++++ b/tools/read_extract.py
+@@ -49,22 +49,21 @@
+ 
+ def _extension(path: str) -> str:
+     ext = Path(path).suffix.lower()
+-    known = ext in EXTRACTABLE_EXTENSIONS or (ext in ANYDOC_EXTENSIONS and _anydoc() is not None)
++    known = ext in EXTRACTABLE_EXTENSIONS or ext in ANYDOC_EXTENSIONS
+     return ext if known else ""
+ 
+ 
+ _ANYDOC_UNSET = object()
+ _anydoc_module: Any = _ANYDOC_UNSET
+ _anydoc_lock = threading.Lock()
+-# Cooldown after a failed load: the attempt can shell out to pip, so retrying every call would
+-# hammer the network where install can't succeed.
++# Avoid repeatedly importing an unavailable or broken converter.
+ ANYDOC_RETRY_SECONDS = 300.0
+ _anydoc_failed_at: Optional[float] = None
+ 
+ 
+ def _anydoc() -> Optional[Any]:
+-    """Lazily import the optional anydoc converter (None when unavailable; failures retried after
+-    ANYDOC_RETRY_SECONDS so one transient pip/network blip does not stick)."""
++    """Lazily import the bundled anydoc converter (None when unavailable; failures retried after
++    ANYDOC_RETRY_SECONDS so a repaired installation can be detected)."""
+     global _anydoc_module, _anydoc_failed_at
+     if _anydoc_module is not _ANYDOC_UNSET:
+         return _anydoc_module
+@@ -75,15 +74,8 @@
+                 and time.monotonic() - _anydoc_failed_at < ANYDOC_RETRY_SECONDS):
+             return None
+         try:
+-            from pm import ensure_import
+-
+-            # read_file must never block on an install prompt.
+-            ensure_import("doc-extract")
+-        except Exception:
+-            _anydoc_failed_at = time.monotonic()
+-            return None
+-        try:            _anydoc_module = importlib.import_module("anydoc")
+-        except Exception:  # install failure, ImportError or a broken native binding
++            _anydoc_module = importlib.import_module("anydoc")
++        except Exception:  # ImportError or a broken native binding
+             _anydoc_failed_at = time.monotonic()
+             return None
+         _anydoc_failed_at = None
+@@ -135,19 +127,11 @@
+ 
+ 
+ def _anydoc_missing_error(path: str) -> str:
+-    """Teaching text for anydoc-gated formats (not in the schema: only sessions hitting one pay).
+-
+-    Response-time hint (#95681 pattern): the schema no longer lists the anydoc-gated formats or the
+-    availability caveat — a session that never touches a .doc/.odt/.epub never pays for the explanation, and
+-    one that does gets the full story here, with the fix.
+-    """
++    """Explain the missing converter without attempting an environment update."""
+     return (
+-        f"Cannot convert {path!r}: this format needs the optional anydoc "
+-        "converter, which is not installed (install blocked or first "
+-        "attempt failed; retried every 5 minutes). Run `hermes pm repair` "
+-        "to restore firecrawl-anydoc, or convert the file "
+-        "yourself via terminal (e.g. libreoffice --headless --convert-to "
+-        "txt).")
++        f"Cannot convert {path!r}: firecrawl-anydoc==0.2.4 is missing or broken. "
++        "Repair the Conda environment with `conda install -c conda-forge "
++        "firecrawl-anydoc=0.2.4`, or convert the file externally (e.g. with LibreOffice).")
+ 
+ 
+ def _hosted_ocr_config() -> tuple:
